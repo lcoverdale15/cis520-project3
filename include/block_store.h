@@ -13,10 +13,10 @@ extern "C"
 #define BLOCK_STORE_NUM_BLOCKS 512        // 2^9 data block
 #define BLOCK_SIZE_BYTES 32        // 2^5 BYTES per block
 #define BITMAP_SIZE_BITS BLOCK_STORE_NUM_BLOCKS        // 2^9 bits
-#define BITMAP_SIZE_BYTES (BITMAP_SIZE_BITS / 8)
+#define BITMAP_SIZE_BYTES (BITMAP_SIZE_BITS / 8)  //64
 #define BLOCK_STORE_NUM_BYTES (BLOCK_STORE_NUM_BLOCKS * BLOCK_SIZE_BYTES)
 #define BITMAP_START_BLOCK 127
-#define BITMAP_NUM_BLOCKS (BITMAP_SIZE_BYTES / BLOCK_SIZE_BYTES)
+#define BITMAP_NUM_BLOCKS (BITMAP_SIZE_BYTES / BLOCK_SIZE_BYTES)  //2
 
 	// Declaring the struct but not implementing in the header allows us to prevent users
 	//  from using the object directly and monkeying with the contents

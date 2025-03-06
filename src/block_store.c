@@ -5,6 +5,13 @@
 #include "block_store.h"
 // include more if you need
 
+struct block_store 
+{
+	void * bloc;
+	void * bitmap;
+	void * secondHalf; 
+};
+
 
 // You might find this handy. I put it around unused parameters, but you should
 // remove it before you submit. Just allows things to compile initially.
