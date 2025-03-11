@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 #include <stdint.h>
 
 #include "bitmap.h"
@@ -7,9 +8,9 @@
 
 struct block_store 
 {
-	void * bloc;
-	void * bitmap;
-	void * secondHalf; 
+	uint8_t blocks[BLOCK_STORE_NUM_BLOCKS][BLOCK_SIZE_BYTES];
+	uint8_t *bitmap;
+	uint8_t *secondHalf; 
 };
 
 
@@ -19,7 +20,18 @@ struct block_store
 
 block_store_t *block_store_create()
 {
-	return NULL;
+	block_store_t *bs = (block_store_t *)malloc(sizeof(block_store_t));
+	if(!bs) return NULL;
+
+	memset(bs, 0, sizeof(block_store_t));
+	
+	bs->bitmap = (uint8_t *)bs->blocks[BITMAP_START_BLOCK];
+
+	for(int i = 0; i < BITMAP_NUM_BLOCKS; i++){
+		block_store_request(bs, BITMAP_START_BLOCK + i);
+	}
+
+	return bs;
 }
 
 void block_store_destroy(block_store_t *const bs)
