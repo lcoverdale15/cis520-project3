@@ -45,6 +45,34 @@ void block_store_destroy(block_store_t *const bs)
 //  It returns the index of the allocated block or SIZE_MAX if no free block is available.
 size_t block_store_allocate(block_store_t *const bs)
 {
+	UNUSED(bs);
+	return 0;
+}
+
+/*
+	This function marks a specific block as allocated in the bitmap. 
+	It first checks if the pointer to the block store is not NULL and if the block_id is within the range of valid block indices. 
+	If the block is already marked as allocated, it returns false. 
+	Otherwise, it marks the block as allocated and checks that the block was indeed marked as allocated by testing the bitmap. 
+	It returns true if the block was successfully marked as allocated, false otherwise.
+*/
+bool block_store_request(block_store_t *const bs, const size_t block_id)
+{
+	if(bs == NULL || block_id >= BLOCK_STORE_NUM_BLOCKS || bs->bitmap == NULL){
+		return false;
+	}
+
+	size_t byte_index = block_id / 8;
+	size_t bit_index = block_id % 8;
+	uint8_t mask = 1 << bit_index; //creating bitmask at posisiton bit_index
+
+	if((bs->bitmap[byte_index] & mask) != 0){
+		return false;
+	}
+
+	bs->bitmap[byte_index] |= mask;
+
+	return (bs->bitmap[byte_index] & mask);
 	//find the first free block, set it to used, return that index
 	if(bs == NULL || bs->blocks == NULL || bs->bitmap == NULL){
 		//review this, unsigned 
@@ -123,9 +151,10 @@ size_t block_store_get_free_blocks(const block_store_t *const bs)
 	return 0;
 }
 
+//This function returns the total number of blocks in the block store, which is defined by BLOCK_STORE_NUM_BLOCKS.
 size_t block_store_get_total_blocks()
 {
-	return 0;
+	return BLOCK_STORE_NUM_BLOCKS;
 }
 
 size_t block_store_read(const block_store_t *const bs, const size_t block_id, void *buffer)
