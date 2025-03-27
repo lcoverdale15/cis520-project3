@@ -189,12 +189,16 @@ size_t block_store_get_total_blocks()
 	return BLOCK_STORE_NUM_BLOCKS;
 }
 
+//This function reads the contents of a block into a buffer. It returns the number of bytes successfully read.
 size_t block_store_read(const block_store_t *const bs, const size_t block_id, void *buffer)
 {
-	UNUSED(bs);
-	UNUSED(block_id);
-	UNUSED(buffer);
-	return 0;
+	if(bs == NULL || buffer == NULL || block_id >= BLOCK_STORE_NUM_BLOCKS){
+		return 0;
+	}
+
+	memcpy(buffer, bs->blocks[block_id], BLOCK_SIZE_BYTES);
+
+	return BLOCK_SIZE_BYTES;
 }
 
 size_t block_store_write(block_store_t *const bs, const size_t block_id, const void *buffer)
