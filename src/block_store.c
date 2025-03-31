@@ -1,9 +1,18 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
 
 #include "bitmap.h"
 #include "block_store.h"
+#include <errno.h>
+
+
+
 // include more if you need
 
 struct block_store 
@@ -203,21 +212,108 @@ size_t block_store_read(const block_store_t *const bs, const size_t block_id, vo
 
 size_t block_store_write(block_store_t *const bs, const size_t block_id, const void *buffer)
 {
+
 	UNUSED(bs);
 	UNUSED(block_id);
 	UNUSED(buffer);
 	return 0;
 }
+//This function deserializes a block store from a file. It returns a pointer to the resulting block_store_t struct.
 
 block_store_t *block_store_deserialize(const char *const filename)
 {
-	UNUSED(filename);
-	return NULL;
+	//load back from filenam to block
+	//open the file
+	//create a block_store_t struct
+	//read from the file, 
+	//how to read from the file ? 
+	//check if we need to pad it if it's sie %block_size has remainder
+	//how do I know that padding is present ? 
+	//read the file, and cll write while requesting bolck_store_write
+	//and pass the block store we created, return the blockstore
+	
+	if(filename == NULL){
+		    return 0;
+		}
+		block_store_t * bs = block_store_create();
+		int fd = open(filename,O_RDONLY);
+		if(errno){
+				perror("failed to open file");
+				return 0;
+			}
+		//read the file, while we haven't reached the end, request a block of memory
+		//how to check for padding bytes ? 
+			int block_id = block_store_allocate(block_store_t *const bs);
+			void * buffer = malloc(sizeof(char)*32);
+			read(fd,buffer,BLOCK_SIZE_BYTES);
+				
+			 block_store_read( bs,  block_id, buffer);
+
+			
+
+		return bs;
 }
 
+
+/*
+*This function serializes a block store to a file. It returns the size of the resulting file in bytes.
+* Note: If a test case expects a specific number of bytes to be written but your file is smaller, pad
+* the rest of the file with zeros until the file is of the expected size. Modify your block_store_deserialize
+* function accordingly to accept padding if present.
+*/
 size_t block_store_serialize(const block_store_t *const bs, const char *const filename)
+
 {
-	UNUSED(bs);
-	UNUSED(filename);
-	return 0;
+	//go through blocks one by one
+		if(bs == NULL || bs->blocks == NULL || bs->bitmap == NULL|| filename == NULL){
+		//review this, unsigned 
+		return 0;
+			}
+		int fileSize = 0;
+		int fd = open(filename,O_WRONLY | O_CREAT | O_TRUNC);
+		if(errno){
+				perror("failed to open file");
+				return 0;
+			}
+
+			uint8_t *bitmap = bs->bitmap;
+			//go over all the bitmaps
+			for(int i = 0; i<BITMAP_NUM_BLOCKS ;i++){
+				//go over every byte in a block 
+				for(int byte = 0; byte < BLOCK_SIZE_BYTES;byte++){
+				//go over every bit in the byte
+					for(int bit = 0; bit <8 ; bit ++){
+						uint8_t flag = 1;
+						//shift the flag to the correct bit
+						flag = flag << bit;
+						//see if the bit is set
+						uint8_t data = bitmap[byte] & flag;
+						
+						if(data !=0){
+							printf("found an a located bit");
+							//set the data
+							char * buffer = malloc(sizeof(char)*32);
+						
+							block_store_read( bs,  (i *BLOCK_SIZE_BYTES * 8) + byte * 8 + bit, buffer);
+
+							int x;
+							//reposition read file offset, specifying the offset to offset bytes
+							if((x = write(fd,buffer,BLOCK_SIZE_BYTES)) != BLOCK_SIZE_BYTES){
+									//write the other blocks
+									char * padding = calloc(sizeof(char),(BLOCK_SIZE_BYTES - x));
+									write(fd,padding,BLOCK_SIZE_BYTES - x);
+								
+							}
+							fileSize +=BLOCK_SIZE_BYTES;
+							
+						}
+					}
+		  }
+			bitmap += BLOCK_SIZE_BYTES;	
+		}
+							close(fd);
+
+			return fileSize;
+	
+
 }
