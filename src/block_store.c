@@ -31,10 +31,19 @@ struct bitmap
 	size_t bit_count, byte_count;
 };
 
+#define BITMAP_SIZE_BYTES ((BLOCK_STORE_NUM_BLOCKS + 7) / 8)
+
 // You might find this handy. I put it around unused parameters, but you should
 // remove it before you submit. Just allows things to compile initially.
-#define UNUSED(x) (void)(x)
 
+/*
+	This function creates a new block store and returns a pointer to it. 
+	It first allocates memory for the block store and initializes it to zeros using the memset 
+	(an alternative method to initialize newly-allocated memory to all 0s is to use calloc instead of malloc). 
+	Then it sets the bitmap field of the block store to an overlay of a bitmap with size BITMAP_SIZE_BYTES on the 
+	blocks starting at index BITMAP_START_BLOCK. 
+	Finally, it marks the blocks used by the bitmap as allocated using the block_store_request function.
+*/
 block_store_t *block_store_create()
 {
 	block_store_t *bs = (block_store_t *)malloc(sizeof(block_store_t));
@@ -42,7 +51,11 @@ block_store_t *block_store_create()
 
 	memset(bs, 0, sizeof(block_store_t));
 	
-	bs->bitmap = (uint8_t *)bs->blocks[BITMAP_START_BLOCK];
+	bs->bitmap = bitmap_create(BITMAP_SIZE_BYTES);
+	if(bs->bitmap == NULL){
+		free(bs);
+		return NULL;
+	}
 
 	for(int i = 0; i < BITMAP_NUM_BLOCKS; i++){
 		block_store_request(bs, BITMAP_START_BLOCK + i);
@@ -51,9 +64,15 @@ block_store_t *block_store_create()
 	return bs;
 }
 
+/*
+	This function destroys a block store by freeing the memory allocated to it. 
+	It first checks if the pointer to the block store is not NULL, and if so, 
+	it frees the memory allocated to the bitmap and then to the block store.
+*/
 void block_store_destroy(block_store_t *const bs)
 {
 	if(bs){
+		bitmap_destroy(bs->bitmap);
 		free(bs);
 	}
 }
@@ -65,6 +84,7 @@ size_t block_store_allocate(block_store_t *const bs)
 {
 	if(bs == NULL || bs->blocks == NULL || bs->bitmap == NULL){
 		//review this, unsigned 
+		errno = ENOSPC; //No Space
 		return SIZE_MAX;
 	}
 	uint8_t *bitmap = bs->bitmap;
@@ -210,13 +230,17 @@ size_t block_store_read(const block_store_t *const bs, const size_t block_id, vo
 	return BLOCK_SIZE_BYTES;
 }
 
+//This function writes the contents of a buffer to a block. It returns the number of bytes successfully written.
 size_t block_store_write(block_store_t *const bs, const size_t block_id, const void *buffer)
 {
 
-	UNUSED(bs);
-	UNUSED(block_id);
-	UNUSED(buffer);
-	return 0;
+	if(bs == NULL || buffer == NULL || block_id >= BLOCK_STORE_NUM_BLOCKS){
+		errno = EINVAL; //Invalid argument
+		return 0;
+	}
+	memcpy(bs->blocks[block_id], buffer, BLOCK_SIZE_BYTES);
+
+	return BLOCK_SIZE_BYTES;
 }
 //This function deserializes a block store from a file. It returns a pointer to the resulting block_store_t struct.
 
