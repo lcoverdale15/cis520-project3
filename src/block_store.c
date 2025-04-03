@@ -45,18 +45,20 @@ struct bitmap
 block_store_t *block_store_create()
 {
 	block_store_t *bs = (block_store_t *)malloc(sizeof(block_store_t));
-	if(!bs) return NULL;
+	if(bs == NULL) return NULL;
 
 	memset(bs, 0, sizeof(block_store_t));
 	
-	bs->bitmap = bitmap_create(BITMAP_SIZE_BYTES);
+	bs->bitmap = bitmap_create(BLOCK_STORE_NUM_BLOCKS);
 	if(bs->bitmap == NULL){
 		free(bs);
 		return NULL;
 	}
 
-	for(int i = 0; i < BITMAP_NUM_BLOCKS; i++){
-		block_store_request(bs, BITMAP_START_BLOCK + i);
+	bitmap_format(bs->bitmap, 0);
+
+	for(size_t i = 0; i < BITMAP_NUM_BLOCKS; i++){
+		bitmap_set(bs->bitmap, BITMAP_START_BLOCK + i);
 	}
 
 	return bs;
@@ -81,21 +83,21 @@ void block_store_destroy(block_store_t *const bs)
 size_t block_store_allocate(block_store_t *const bs)
 {
 	if(bs == NULL || bs->blocks == NULL || bs->bitmap == NULL){
-		//review this, unsigned 
-		errno = ENOSPC; //No Space
+		errno = EINVAL; //invalid argument
 		return SIZE_MAX;
 	}
-	bitmap_t *bitmap = bs->bitmap;
-	int total_bits = BITMAP_NUM_BLOCKS * BLOCK_SIZE_BYTES * 8;
-	//go over all the bitmaps
-	for(int i = 0; i < total_bits; i++){
-		if(bitmap_test(bitmap, i) == false){
-			bitmap_set(bitmap, i);
-			return i;
+	
+	for(size_t i = 0; i < BLOCK_STORE_NUM_BLOCKS; i++){
+		if((i < BITMAP_START_BLOCK) || (i >= BITMAP_START_BLOCK + BITMAP_NUM_BLOCKS)){
+			if(!bitmap_test(bs->bitmap, i)){
+				bitmap_set(bs->bitmap, i);
+				return i;
+			}
 		}
 	}
-		errno = ENOSPC; //No free space
-		return SIZE_MAX;
+
+	errno = ENOSPC;
+	return SIZE_MAX;
 }
 
 /*
@@ -110,6 +112,8 @@ bool block_store_request(block_store_t *const bs, const size_t block_id)
 	if(bs == NULL || block_id >= BLOCK_STORE_NUM_BLOCKS || bs->bitmap == NULL){
 		return false;
 	}
+
+	if(block_id >= BITMAP_START_BLOCK && block_id < BITMAP_START_BLOCK + BITMAP_NUM_BLOCKS) return false;
 
 	if(bitmap_test(bs->bitmap, block_id)){
 		return false;
@@ -130,16 +134,15 @@ void block_store_release(block_store_t *const bs, const size_t block_id)
 			if(bs == NULL || bs->blocks == NULL || bs->bitmap == NULL){
 				return  ;
 			}
-			if(!((block_id>=BITMAP_START_BLOCK+BITMAP_NUM_BLOCKS) || ((int)block_id<BITMAP_START_BLOCK))){
-				return  ;
+
+			if(block_id >= BITMAP_START_BLOCK && block_id < BITMAP_START_BLOCK + BITMAP_NUM_BLOCKS){
+				return;
 			}
 
 			//find the bit, reset it 
 			// int bitmapIndex = block_id / (BLOCK_SIZE_BYTES * 8 -1);
 			//uint8_t * bitmap = bs->bitmap[bitmapIndex];
-			bitmap_reset(bs->bitmap, block_id);
-			return   ;
-	
+			bitmap_reset(bs->bitmap, block_id);	
 }
 /*
 *This function returns the number of blocks that are currently allocated in the block store. 
@@ -148,11 +151,16 @@ void block_store_release(block_store_t *const bs, const size_t block_id)
 size_t block_store_get_used_blocks(const block_store_t *const bs)
 {
 
-	if(bs == NULL) return SIZE_MAX;
-	
-	bitmap_t *bitmap = bs->bitmap;
+	if(bs == NULL || bs->bitmap == NULL) return SIZE_MAX;
 
-	return  bitmap_total_set(bitmap);
+	size_t used = 0;
+	for(size_t i = 0; i < BLOCK_STORE_NUM_BLOCKS; i++){
+		if(bitmap_test(bs->bitmap, i)){
+			used++;
+		}
+	}
+
+	return used;
 
 }
 
@@ -200,41 +208,41 @@ size_t block_store_write(block_store_t *const bs, const size_t block_id, const v
 
 block_store_t *block_store_deserialize(const char *const filename)
 {
-	//load back from filenam to block
-	//open the file
-	//create a block_store_t struct
-	//read from the file, 
-	//how to read from the file ? 
-	//check if we need to pad it if it's sie %block_size has remainder
-	//how do I know that padding is present ? 
-	//read the file, and cll write while requesting bolck_store_write
-	//and pass the block store we created, return the blockstore
-	
-	if(filename == NULL){
-		    return 0;
+	if(filename == NULL) return NULL;
+
+	block_store_t *bs = block_store_create();
+	if(bs == NULL){
+		return NULL;
+	}
+
+	int fd = open(filename, O_RDONLY);
+	if(fd == -1){
+		block_store_destroy(bs);
+		return NULL;
+	}
+
+	for(size_t i = 0; i < BLOCK_STORE_NUM_BLOCKS; i++){
+		ssize_t bytes_read = read(fd, bs->blocks[i], BLOCK_SIZE_BYTES);
+		if(bytes_read != BLOCK_SIZE_BYTES){
+			close(fd);
+			block_store_destroy(bs);
+			return NULL;
 		}
-		block_store_t * bs = block_store_create();
-		if(bs == NULL){
-			perror("failed to create block store");
-			return 0;
-		}
-		int fd = open(filename,O_RDONLY);
-		if(fd == -1){
-				perror("failed to open file");
-				free(bs);
-				return 0;
+
+		for(size_t j = 0; j < BLOCK_SIZE_BYTES; j++){
+			if(bs->blocks[i][j] != 0){
+				bitmap_set(bs->bitmap, i);
+				break;
 			}
-		//read the file, while we haven't reached the end, request a block of memory
-		//how to check for padding bytes ? 
-			int block_id = block_store_allocate(block_store_t *const bs);
-			void * buffer = malloc(sizeof(char)*32);
-			read(fd,buffer,BLOCK_SIZE_BYTES);
-				
-			 block_store_read( bs,  block_id, buffer);
+		}
+	}
 
-			
+	for(size_t i = 0; i < BLOCK_SIZE_BYTES; i++){
+		bitmap_set(bs->bitmap, BITMAP_START_BLOCK + i);
+	}
 
-		return bs;
+	close(fd);
+	return bs;
 }
 
 
@@ -248,55 +256,25 @@ size_t block_store_serialize(const block_store_t *const bs, const char *const fi
 
 {
 	//go through blocks one by one
-		if(bs == NULL || bs->blocks == NULL || bs->bitmap == NULL|| filename == NULL){
+	if(bs == NULL || bs->blocks == NULL || bs->bitmap == NULL|| filename == NULL){
 		//review this, unsigned 
 		return 0;
-			}
-		int fileSize = 0;
-		int fd = open(filename,O_WRONLY | O_CREAT | O_TRUNC);
-		if(errno){
-				perror("failed to open file");
-				return 0;
-			}
+	}
 
-			uint8_t *bitmap = bs->bitmap;
-			//go over all the bitmaps
-			for(int i = 0; i<BITMAP_NUM_BLOCKS ;i++){
-				//go over every byte in a block 
-				for(int byte = 0; byte < BLOCK_SIZE_BYTES;byte++){
-				//go over every bit in the byte
-					for(int bit = 0; bit <8 ; bit ++){
-						uint8_t flag = 1;
-						//shift the flag to the correct bit
-						flag = flag << bit;
-						//see if the bit is set
-						uint8_t data = bitmap[byte] & flag;
-						
-						if(data !=0){
-							printf("found an a located bit");
-							//set the data
-							char * buffer = malloc(sizeof(char)*32);
-						
-							block_store_read( bs,  (i *BLOCK_SIZE_BYTES * 8) + byte * 8 + bit, buffer);
+	int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	if(fd == -1){
+		return 0;
+	}
 
-							int x;
-							//reposition read file offset, specifying the offset to offset bytes
-							if((x = write(fd,buffer,BLOCK_SIZE_BYTES)) != BLOCK_SIZE_BYTES){
-									//write the other blocks
-									char * padding = calloc(sizeof(char),(BLOCK_SIZE_BYTES - x));
-									write(fd,padding,BLOCK_SIZE_BYTES - x);
-								
-							}
-							fileSize +=BLOCK_SIZE_BYTES;
-							
-						}
-					}
-		  }
-			bitmap += BLOCK_SIZE_BYTES;	
+	for(size_t i = 0; i < BLOCK_STORE_NUM_BLOCKS; i++){
+		ssize_t bytes_written = write(fd, bs->blocks[i], BLOCK_SIZE_BYTES);
+		if(bytes_written != BLOCK_SIZE_BYTES){
+			close(fd);
+			return 0;
 		}
-							close(fd);
+	}
 
-			return fileSize;
-	
+	close(fd);
+	return BLOCK_STORE_NUM_BLOCKS * BLOCK_SIZE_BYTES;
 
 }
