@@ -7,7 +7,7 @@ typedef enum { NONE = 0x00, OVERLAY = 0x01, ALL = 0xFF } BITMAP_FLAGS;
 
 struct bitmap 
 {
-	unsigned leftover_bits;  // Packing will increase this to an int anyway
+	unsigned leftover_bits;  // Packing will increase this to an int anyway 2 for second one
 	BITMAP_FLAGS flags;	  // Generic place to store flags. Not enough flags to worry about width yet.
 	uint8_t *data;
 	size_t bit_count, byte_count;
