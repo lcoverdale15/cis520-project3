@@ -24,6 +24,8 @@ extern "C"
 	// This enforces a black box device, but it can be restricting
 	typedef struct block_store block_store_t;
 
+	typedef struct bitmap bitmap_t;
+
 	///
 	/// This creates a new BS device, ready to go
 	/// \return Pointer to a new block storage device, NULL on error
