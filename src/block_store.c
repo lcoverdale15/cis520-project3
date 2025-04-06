@@ -76,7 +76,7 @@ void block_store_destroy(block_store_t *const bs)
 		free(bs);
 	}
 }
-/*remember, parameter validation, error checking, comments
+/*
  This function finds the first free block in the block store and marks it as allocated in the bitmap.
   It returns the index of the allocated block or SIZE_MAX if no free block is available.
 */
@@ -153,14 +153,14 @@ size_t block_store_get_used_blocks(const block_store_t *const bs)
 
 	if(bs == NULL || bs->bitmap == NULL) return SIZE_MAX; //check that the parameters were passed correctly
 
-	size_t used = 0; //count for total used blocks
-	for(size_t i = 0; i < BLOCK_STORE_NUM_BLOCKS; i++){ //iterate through all blocks
-		if(bitmap_test(bs->bitmap, i)){ //test if the bit is set
-			used++; //increase the total used count
-		}
-	}
-
-	return used; //return the used count
+	// size_t used = 0; //count for total used blocks
+	// for(size_t i = 0; i < BLOCK_STORE_NUM_BLOCKS; i++){ //iterate through all blocks
+	// 	if(bitmap_test(bs->bitmap, i)){ //test if the bit is set
+	// 		used++; //increase the total used count
+	// 	}
+	// }
+	return bitmap_total_set(bs->bitmap);
+	// return used; //return the used count
 
 }
 
@@ -215,15 +215,20 @@ block_store_t *block_store_deserialize(const char *const filename)
 	}
 
 	int fd = open(filename, O_RDONLY); //open the file in readonly mode
+
+	
 	if(fd == -1){ //check that the file was opened correctly, if not destroy the block store
+	perror("error opening file");
 		block_store_destroy(bs);
 		return NULL;
 	}
 
 	for(size_t i = 0; i < BLOCK_STORE_NUM_BLOCKS; i++){ //Read one block of data from the file into block i.
 		ssize_t bytes_read = read(fd, bs->blocks[i], BLOCK_SIZE_BYTES); //read from the file and store in the block at index i
+		
 		if(bytes_read != BLOCK_SIZE_BYTES){ //check that we read enough values, if not close the file and destroy the block
 			close(fd);
+		
 			block_store_destroy(bs);
 			return NULL;
 		}
@@ -241,6 +246,7 @@ block_store_t *block_store_deserialize(const char *const filename)
 	}
 
 	close(fd);
+	
 	return bs;
 }
 
@@ -260,19 +266,27 @@ size_t block_store_serialize(const block_store_t *const bs, const char *const fi
 	}
 
 	int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644); //open the file in write only: https://stackoverflow.com/questions/28466715/using-open-to-create-a-file-in-c
+	
 	if(fd == -1){ //check that file was opened correctly
+			perror("error opening file");
+
 		return 0;
 	}
 
 	for(size_t i = 0; i < BLOCK_STORE_NUM_BLOCKS; i++){ //write one block of data into the file
 		ssize_t bytes_written = write(fd, bs->blocks[i], BLOCK_SIZE_BYTES);
+
+	
+		
 		if(bytes_written != BLOCK_SIZE_BYTES){ //check that the amount written matches what we expect, if not close the file
 			close(fd);
+			
 			return 0;
 		}
 	}
 
 	close(fd); //close the file
+	
 	return BLOCK_STORE_NUM_BLOCKS * BLOCK_SIZE_BYTES; //size of file written in bytes
 
 }
